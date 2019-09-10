@@ -1,6 +1,7 @@
 
 import numpy as np
 import ctypes
+from utils import shifted_scaled_sigmoid
 
 import os
 
@@ -159,6 +160,13 @@ class FtrlProximal:
         _lib.ftrl_predict_batch(matrix, self._model, y_pred_ptr)
 
         return y_pred
+
+    def predict_proba(self, X, shift=0, scale=1):
+        preds = self.predict(X)
+        preds = shifted_scaled_sigmoid(preds, shift=shift, scale=scale)  # convert to probabilities
+        preds = np.stack((1 - preds, preds), axis=1)  # return probabilities for each class
+        return preds
+
 
     def weights(self):
         model = self._model
