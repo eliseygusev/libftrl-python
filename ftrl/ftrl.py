@@ -1,6 +1,7 @@
 
 import numpy as np
 import ctypes
+from utils import shifted_scaled_sigmoid
 
 import os
 
@@ -115,7 +116,7 @@ model_types_map = {
 
 class FtrlProximal:
 
-    def __init__(self, alpha=1.0, beta=1.0, l1=0.0, l2=0.0, model_type='classification'):
+    def __init__(self, alpha=1.0, beta=1.0, l1=0.0, l2=0.0, model_type='classification', num_passes=None):
         model_type = model_type.lower()
         if model_type not in model_types_map:
             allowed_types = ', '.join(model_types_map.keys())
@@ -125,13 +126,16 @@ class FtrlProximal:
         type_int = model_types_map[model_type]
         self._params = FtrlParams(alpha, beta, l1, l2, type_int)
         self._model = None
+        self.num_passes = num_passes
 
     def init_model(self, X):
         self._cleanup()
         _, num_features = X.shape
         self._model = _lib.ftrl_init_model(self._params, num_features)
 
-    def fit(self, X, y, num_passes=1):
+    def fit(self, X, y, num_passes=None):
+        num_passes = num_passes or self.num_passes or 1
+
         if self._model is None:
             self.init_model(X)
 
@@ -156,6 +160,13 @@ class FtrlProximal:
         _lib.ftrl_predict_batch(matrix, self._model, y_pred_ptr)
 
         return y_pred
+
+    def predict_proba(self, X, shift=0, scale=1):
+        preds = self.predict(X)
+        preds = shifted_scaled_sigmoid(preds, shift=shift, scale=scale)  # convert to probabilities
+        preds = np.stack((1 - preds, preds), axis=1)  # return probabilities for each class
+        return preds
+
 
     def weights(self):
         model = self._model
